@@ -4,11 +4,11 @@ Primitive Lua Compiler!
 Support:
 + x86-64 NASM
 
-**##Current:**
+**Current:**
 - Lexer
 - Parser
 
-**#Future:**
+**Future:**
 - Complete AST
 - Semantic Analysis
 
