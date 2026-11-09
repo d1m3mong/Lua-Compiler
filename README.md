@@ -1,6 +1,6 @@
 # Lua Compiler
 
-A small Lua-inspired compiler written in C++.
+A small Lua inspired compiler written in C++.
 
 ## Current Features
 - Lexer
