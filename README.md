@@ -1,14 +1,17 @@
-**Lua Compiler**
+# Lua Compiler
 
-Primitive Lua Compiler!
-Support:
-+ x86-64 NASM
+A small Lua-inspired compiler written in C++.
 
-**Current:**
+## Current Features
 - Lexer
-- Parser
+- Pratt Parser
+- AST
+- Interpreter
+  - Arithmetic operations
+  - Comparison operators
+  - Logical operators
 
-**Future:**
+## Planned Features
 - Complete AST
 - Semantic Analysis
-
+- Variable Management
