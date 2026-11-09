@@ -10,6 +10,7 @@
 #include <variant>
 #include <vector>
 
+#include "interpreter.hpp"
 #include "lexer.hpp"
 #include "parser.hpp"
 
@@ -100,8 +101,22 @@ int main(int argc, char **argv) {
       std::cout << tokenTypeToString(t.type) << "\n";
     }
 
+    Interpreter interpreter;
     Parser parser(tokens);
-    parser.parse();
+    bool success = parser.parse();
+    if (!success)
+      return -1;
+
+    std::vector<Value> interpreterResults;
+
+    for (const auto &node : parser.getAST()) {
+      showAST(&node);
+      interpreterResults.push_back(interpreter.evaluate(node));
+
+      std::cout << '\n';
+    }
+
+    // showInterpreter(interpreterResults);
 
   } catch (const std::exception &except) {
     std::cerr << "Trapped: " << except.what() << "\n";

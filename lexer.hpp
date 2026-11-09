@@ -27,6 +27,16 @@ enum class TokenType {
   LeftParent,
   RightParent,
 
+  KwAnd,
+  KwOr,
+
+  EqualEqual,
+  NotEqual,
+  LessThan,
+  GreaterThan,
+  LessEqual,
+  GreaterEqual,
+
   End,
 
   Invalid,
@@ -191,6 +201,17 @@ public:
     case '=':
       advance();
 
+      if (peek() == '=') {
+        advance();
+
+        return Token{
+            TokenType::EqualEqual,
+            source.substr(start, position - start),
+            startLine,
+            startColumn,
+        };
+      }
+
       return Token{
           TokenType::Equals,
           source.substr(start, 1),
@@ -242,6 +263,48 @@ public:
           startLine,
           startColumn,
       };
+    case '~':
+      advance();
+
+      if (peek() != '=')
+        return Token{TokenType::Invalid, "", startLine, startColumn};
+
+      advance();
+
+      return Token{
+          TokenType::NotEqual,
+          source.substr(start, position - start),
+          startLine,
+          startColumn,
+      };
+    case '<':
+      advance();
+
+      if (peek() == '=') {
+        advance();
+
+        return Token{TokenType::LessEqual,
+                     source.substr(start, position - start), startLine,
+                     startColumn};
+      }
+
+      return Token{TokenType::LessThan, source.substr(start, position - start),
+                   startLine, startColumn};
+
+    case '>':
+      advance();
+
+      if (peek() == '=') {
+        advance();
+
+        return Token{TokenType::GreaterEqual,
+                     source.substr(start, position - start), startLine,
+                     startColumn};
+      }
+
+      return Token{TokenType::GreaterThan,
+                   source.substr(start, position - start), startLine,
+                   startColumn};
 
     default:
       advance();
@@ -288,6 +351,10 @@ inline TokenType getKeywordType(std::string_view text) {
     return TokenType::KwPrint;
   if (text == "true" || text == "false")
     return TokenType::Boolean;
+  if (text == "or")
+    return TokenType::KwOr;
+  if (text == "and")
+    return TokenType::KwAnd;
 
   return TokenType::Identifier;
 }
@@ -322,6 +389,22 @@ inline std::string_view tokenTypeToString(TokenType type) {
     return "RightParent";
   case TokenType::End:
     return "End";
+  case TokenType::KwAnd:
+    return "And";
+  case TokenType::KwOr:
+    return "Or";
+  case TokenType::EqualEqual:
+    return "EqualEqual";
+  case TokenType::LessEqual:
+    return "LessEqual";
+  case TokenType::GreaterEqual:
+    return "GreaterEqual";
+  case TokenType::GreaterThan:
+    return "GreaterThan";
+  case TokenType::LessThan:
+    return "LessThan";
+  case TokenType::NotEqual:
+    return "NotEqual";
   case TokenType::Invalid:
     return "Invalid";
   }

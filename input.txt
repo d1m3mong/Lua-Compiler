@@ -1,1 +1,6 @@
-local x = 2 * 3 + 5 / 2
+local a = 5 < 10
+local b = 5 > 10
+local c = 5 == 5
+local d = 5 ~= 10
+local e = 5 <= 5
+local f = 5 >= 10

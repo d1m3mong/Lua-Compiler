@@ -1,16 +1,25 @@
 #pragma once
 
+#include <algorithm>
+#include <charconv>
+#include <exception>
 #include <iostream>
+#include <memory>
 #include <optional>
+#include <stdexcept>
 #include <string_view>
+#include <system_error>
+#include <type_traits>
 #include <variant>
 #include <vector>
 
+#include "ast.hpp"
 #include "lexer.hpp"
 
 class Parser {
   std::vector<Token> tokens;
   size_t position{0};
+  std::vector<ASTNode> ast;
 
   int getBindingPower(TokenType type) const {
     switch (type) {
@@ -20,6 +29,10 @@ class Parser {
     case TokenType::Star:
     case TokenType::Slash:
       return 20;
+    case TokenType::KwAnd:
+      return 5;
+    case TokenType::KwOr:
+      return 3;
     default:
       return 0;
     }
@@ -31,6 +44,14 @@ class Parser {
     case TokenType::Minus:
     case TokenType::Slash:
     case TokenType::Star:
+    case TokenType::KwAnd:
+    case TokenType::KwOr:
+    case TokenType::EqualEqual:
+    case TokenType::LessEqual:
+    case TokenType::LessThan:
+    case TokenType::GreaterEqual:
+    case TokenType::GreaterThan:
+    case TokenType::NotEqual:
       return true;
 
     default:
@@ -66,14 +87,22 @@ class Parser {
     return false;
   }
 
-  bool parseExpression(int minBindingPower = 0) {
+  std::optional<ASTNode> parseExpression(int minBindingPower = 0) {
     if (!peek().has_value())
-      return false;
+      return std::nullopt;
 
-    if (!parsePrimary())
-      return false;
+    auto primaryResult = parsePrimary();
+    if (!primaryResult)
+      return std::nullopt;
+
+    std::unique_ptr<ASTNode> left =
+        std::make_unique<ASTNode>(std::move(primaryResult.value()));
+    TokenType op;
 
     while (true) {
+      if (!peek().has_value())
+        break;
+
       if (isOperator(peek()->type)) {
         if (getBindingPower(peek()->type) < minBindingPower)
           break;
@@ -83,13 +112,19 @@ class Parser {
 
       int bindingPower = getBindingPower(peek()->type);
 
-      advance();
-      bool result = parseExpression(bindingPower + 1);
+      op = advance().value().type;
+
+      auto result = parseExpression(bindingPower + 1);
       if (!result)
-        return false;
+        return std::nullopt;
+
+      auto right = std::make_unique<ASTNode>(std::move(result.value()));
+
+      left = std::make_unique<ASTNode>(std::make_unique<BinaryExprNode>(
+          std::move(left), std::move(right), op));
     }
 
-    return true;
+    return std::move(*left);
   }
 
   bool atEnd() const {
@@ -97,19 +132,73 @@ class Parser {
     return !res.has_value() || res->type == TokenType::End;
   }
 
-  bool parsePrimary() {
+  std::optional<ASTNode> parsePrimary() {
     if (!peek().has_value())
-      return false;
+      return std::nullopt;
 
     switch (peek().value().type) {
-    case TokenType::Number:
-    case TokenType::Identifier:
-    case TokenType::Boolean:
-    case TokenType::String:
+    case TokenType::Number: {
+      double value{};
+      try {
+        value = transformStringToDigit(peek().value());
+      } catch (const std::exception &ec) {
+        std::cerr << ec.what() << "\n";
+        return std::nullopt;
+      }
+
       advance();
-      return true;
+      return NumberNode{value};
+    }
+
+    case TokenType::Identifier: {
+      std::string_view text = peek().value().text;
+
+      advance();
+
+      return IdentifierNode{text};
+    }
+    case TokenType::Boolean: {
+      bool result = transformStringToBool(peek().value());
+
+      advance();
+
+      return BooleanNode{result};
+    }
+    case TokenType::String: {
+      std::string_view text = peek().value().text;
+
+      advance();
+
+      return StringNode{text};
+    }
+    case TokenType::LeftParent: {
+      advance();
+
+      auto innerAST = parseExpression();
+      if (!innerAST.has_value())
+        return std::nullopt;
+
+      if (!match(TokenType::RightParent))
+        return std::nullopt;
+
+      return innerAST;
+    }
+    case TokenType::Minus: {
+      TokenType c = peek().value().type;
+
+      advance();
+
+      auto innerAST = parseExpression(30);
+      if (!innerAST.has_value())
+        return std::nullopt;
+
+      std::unique_ptr<ASTNode> operand =
+          std::make_unique<ASTNode>(std::move(innerAST.value()));
+
+      return UnaryExprNode{c, std::move(operand)};
+    }
     default:
-      return false;
+      return std::nullopt;
     }
   }
 
@@ -123,12 +212,31 @@ class Parser {
     // if(!match(TokenType::Boolean) || !match(TokenType::String) ||
     // !match(TokenType::Number)) return false;
 
-    bool success = parseExpression();
-    if (!success || !atEnd())
+    auto result = parseExpression();
+    if (!result) //|| !atEnd())
       return false;
 
-    std::cout << "Parse Successfully!\n";
+    ast.push_back(std::move(result.value()));
+
     return true;
+  }
+
+  double transformStringToDigit(const Token &t) {
+    double value{};
+
+    auto [ptr, ec] =
+        std::from_chars(t.text.data(), t.text.data() + t.text.size(), value);
+    if (ec != std::errc{} || ptr != t.text.data() + t.text.size()) {
+      throw std::invalid_argument("No valid double!");
+    }
+
+    return value;
+  }
+
+  bool transformStringToBool(const Token &t) {
+    if (t.text == "true")
+      return true;
+    return false;
   }
 
 public:
@@ -136,5 +244,44 @@ public:
     std::cout << "Initialized Parser!\n";
   }
 
-  void parse() { parseDeclaration(); }
+  const std::vector<ASTNode> &getAST() const { return ast; }
+
+  bool parse() {
+    while (!atEnd()) {
+      if (!parseDeclaration()) {
+        std::cerr << "Parse Error at token: " << position << '\n';
+        return false;
+      }
+    }
+
+    std::cout << "Parse Successfully!\n";
+    return true;
+  }
 };
+
+inline void showAST(const ASTNode *node) {
+  std::visit(
+      [](const auto &value) {
+        using T = std::decay_t<decltype(value)>;
+
+        if constexpr (std::is_same_v<T, NumberNode>) {
+          std::cout << value.value;
+        } else if constexpr (std::is_same_v<T, StringNode>) {
+          std::cout << value.text;
+        } else if constexpr (std::is_same_v<T, IdentifierNode>) {
+          std::cout << value.text;
+        } else if constexpr (std::is_same_v<T, BooleanNode>) {
+          std::cout << value.value;
+        } else if constexpr (std::is_same_v<T, UnaryExprNode>) {
+          std::cout << tokenTypeToString(value.op);
+          showAST(value.operand.get());
+        } else if constexpr (std::is_same_v<T, BinaryExprPtr>) {
+          std::cout << "(";
+          showAST(value->left.get());
+          std::cout << " " << tokenTypeToString(value->op) << " ";
+          showAST(value->right.get());
+          std::cout << ")";
+        }
+      },
+      *node);
+}
