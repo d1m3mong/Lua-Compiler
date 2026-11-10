@@ -1,20 +1,35 @@
 #pragma once
 
 #include "ast.hpp"
+#include "environment.hpp"
 #include "lexer.hpp"
 #include <concepts>
+#include <exception>
 #include <memory>
 #include <stdexcept>
 #include <string>
 #include <type_traits>
 #include <variant>
+#include <vector>
 
-using Value = std::variant<double, bool, std::string>;
+#include "value.hpp"
 
 class Interpreter {
+  Environment environment;
+
 public:
-  Value evaluate(const ASTNode &node) { // id be surprised if i can read this in
-                                        // 2 years time
+  void interpret(const std::vector<ASTNode> &ast) {
+    for (const auto &node : ast) {
+      evaluate(node);
+    }
+  }
+
+  Value getVariable(const std::string &name) const {
+    return environment.get(name);
+  }
+
+  Value
+  evaluate(const ASTNode &node) { // prefix: s = string, b = bool, d = double!!
     return std::visit(
         [this](const auto &value) -> Value {
           using T = std::decay_t<decltype(value)>;
@@ -26,8 +41,24 @@ public:
           } else if constexpr (std::is_same_v<T, StringNode>) {
             return std::string(value.text);
           } else if constexpr (std::is_same_v<T, IdentifierNode>) {
-            return std::string(value.text);
-          } else if constexpr (std::is_same_v<T, BinaryExprPtr>) {
+            return environment.get(std::string(value.text));
+          } else if constexpr (std::is_same_v<T, LocalDeclarationNode>) {
+            Value result = evaluate(*value.initializer);
+            environment.define(value.name, std::move(result));
+            return result;
+          } else if constexpr (std::is_same_v<T, AssignmentNode>) {
+            Value result = evaluate(*value.assignment);
+            environment.assign(value.name, std::move(result));
+            return result;
+          } else if constexpr (std::is_same_v<T, PrintNode>) {
+            Value result = evaluate(*value.content);
+
+            std::visit([](const auto &v) { std::cout << v << "\n"; }, result);
+
+            return result;
+          }
+
+          else if constexpr (std::is_same_v<T, BinaryExprPtr>) {
             Value left = evaluate(*value->left);
 
             switch (value->op) {

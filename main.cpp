@@ -85,6 +85,7 @@ public:
 int main(int argc, char **argv) {
   if (argc < 2) {
     std::cerr << "Calculator requires atleast one File Argument!\n";
+    return -1;
   }
 
   try {
@@ -98,7 +99,7 @@ int main(int argc, char **argv) {
     std::vector<Token> tokens = lexer.tokenize();
 
     for (auto t : tokens) {
-      std::cout << tokenTypeToString(t.type) << "\n";
+      // td::cout << tokenTypeToString(t.type) << "\n";
     }
 
     Interpreter interpreter;
@@ -107,14 +108,19 @@ int main(int argc, char **argv) {
     if (!success)
       return -1;
 
-    std::vector<Value> interpreterResults;
+    // std::vector<Value> interpreterResults;
 
     for (const auto &node : parser.getAST()) {
-      showAST(&node);
-      interpreterResults.push_back(interpreter.evaluate(node));
+      // showAST(&node);
+      //  interpreterResults.push_back(interpreter.evaluate(node));
 
-      std::cout << '\n';
+      // std::cout << '\n';
     }
+
+    interpreter.interpret(parser.getAST());
+
+    // Value var = interpreter.getVariable("a");
+    // std::visit([](const auto &value) { std::cout << value << '\n'; }, var);
 
     // showInterpreter(interpreterResults);
 

@@ -66,6 +66,14 @@ class Parser {
     return tokens[position + offset];
   }
 
+  std::optional<Token> previous() const {
+    if (position - 1 < 0) {
+      return std::nullopt;
+    }
+
+    return tokens[position - 1];
+  }
+
   std::optional<Token> advance() {
     if (position >= tokens.size())
       return std::nullopt;
@@ -207,16 +215,64 @@ class Parser {
       return false;
     if (!match(TokenType::Identifier))
       return false;
+
+    const auto &id = previous();
+    if (!id.has_value()) {
+      return false;
+    }
+
     if (!match(TokenType::Equals))
       return false;
     // if(!match(TokenType::Boolean) || !match(TokenType::String) ||
     // !match(TokenType::Number)) return false;
+    auto result = parseExpression();
+    if (!result) //|| !atEnd())
+      return false;
+
+    LocalDeclarationNode declaration{
+        std::string(id.value().text),
+        std::make_unique<ASTNode>(std::move(result.value()))};
+
+    ast.push_back(std::move(declaration));
+
+    return true;
+  }
+
+  bool parsePrint() {
+    if (!match(TokenType::KwPrint))
+      return false;
+
+    auto expr = parseExpression();
+    if (!expr.has_value())
+      return false;
+
+    PrintNode print{std::make_unique<ASTNode>(std::move(expr.value()))};
+
+    ast.push_back(std::move(print));
+
+    return true;
+  }
+
+  bool parseAssignment() {
+    if (!match(TokenType::Identifier))
+      return false;
+
+    const auto id = previous();
+    if (!id.has_value())
+      return false;
+
+    if (!match(TokenType::Equals))
+      return false;
 
     auto result = parseExpression();
     if (!result) //|| !atEnd())
       return false;
 
-    ast.push_back(std::move(result.value()));
+    AssignmentNode assignment{
+        std::string(id.value().text),
+        std::make_unique<ASTNode>(std::move(result.value()))};
+
+    ast.push_back(std::move(assignment));
 
     return true;
   }
@@ -248,10 +304,18 @@ public:
 
   bool parse() {
     while (!atEnd()) {
-      if (!parseDeclaration()) {
-        std::cerr << "Parse Error at token: " << position << '\n';
-        return false;
+      if (parseDeclaration()) {
+        continue;
       }
+      if (parseAssignment()) {
+        continue;
+      }
+      if (parsePrint()) {
+        continue;
+      }
+
+      std::cerr << "Parse Error at token: " << position << '\n';
+      return false;
     }
 
     std::cout << "Parse Successfully!\n";
@@ -281,6 +345,15 @@ inline void showAST(const ASTNode *node) {
           std::cout << " " << tokenTypeToString(value->op) << " ";
           showAST(value->right.get());
           std::cout << ")";
+        } else if constexpr (std::is_same_v<T, LocalDeclarationNode>) {
+          std::cout << "LocalDeclarationNode: " << value.name << '\n';
+          showAST(value.initializer.get());
+        } else if constexpr (std::is_same_v<T, AssignmentNode>) {
+          std::cout << "AssignmentNode: " << value.name << "\n";
+          showAST(value.assignment.get());
+        } else if constexpr (std::is_same_v<T, PrintNode>) {
+          std::cout << "PrintNode: " << "\n";
+          showAST(value.content.get());
         }
       },
       *node);
