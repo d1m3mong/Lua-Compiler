@@ -1,6 +1,6 @@
 # Lua Compiler
 
-A small Lua inspired compiler written in C++.
+A small Lua inspired interpreter written in C++.
 
 ## Current Features
 - Lexer
@@ -10,8 +10,14 @@ A small Lua inspired compiler written in C++.
   - Arithmetic operations
   - Comparison operators
   - Logical operators
+  - Variable declarations (local)
+  - Variable assignments
+  - Variable management
+  - print() statements
+  - Number, Boolean and String values
 
 ## Planned Features
-- Complete AST
+- Control flow (if, else, while)
 - Semantic Analysis
-- Variable Management
+- Functions
+- Improved error handling
